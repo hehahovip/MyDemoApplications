@@ -9,6 +9,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -20,6 +21,7 @@ import android.os.Build;
 import android.widget.Button;
 import android.widget.ImageView;
 
+import java.io.File;
 import java.util.List;
 
 import dalvik.system.PathClassLoader;
@@ -72,6 +74,8 @@ public class MainActivity extends Activity {
 
         private ImageView mImageView;
 
+        private File storageDir;
+
         public PlaceholderFragment() {
         }
 
@@ -98,12 +102,22 @@ public class MainActivity extends Activity {
             return rootView;
         }
 
+        /**
+         * Call the camera app to take a photo.
+         *
+         * @param actionCode
+         */
         private void dispatchTakePictureIntent(int actionCode) {
             Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             startActivityForResult(takePictureIntent, actionCode);
            // handleSmallCameraPhoto(takePictureIntent);
         }
 
+        /**
+         * Get the photo from returned intent.
+         *
+         * @param intent
+         */
         private void handleSmallCameraPhoto(Intent intent) {
             Bundle extras = intent.getExtras();
             Bitmap mImageBitmap = (Bitmap) extras.get("data");
@@ -122,6 +136,22 @@ public class MainActivity extends Activity {
         public void onActivityResult(int requestCode, int resultCode, Intent data) {
             super.onActivityResult(requestCode, resultCode, data);
             handleSmallCameraPhoto(data);
+        }
+
+        /**
+         * Save photo to external storage.
+         */
+        public void savePhotoToExternalStorage(){
+            storageDir = new File(
+                    Environment.getExternalStoragePublicDirectory(
+                            Environment.DIRECTORY_PICTURES
+                    ),
+                    getAlbumName()
+            );
+        }
+
+        private String getAlbumName() {
+            return getString(R.string.album_name);
         }
     }
 
