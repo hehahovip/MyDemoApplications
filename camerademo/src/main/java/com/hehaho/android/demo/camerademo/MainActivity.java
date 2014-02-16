@@ -8,6 +8,8 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -20,8 +22,15 @@ import android.view.ViewGroup;
 import android.os.Build;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 
 import dalvik.system.PathClassLoader;
@@ -31,6 +40,8 @@ public class MainActivity extends Activity {
     private static final int CAPTURE_IMAGE_ACTIVITY_REQUEST_CODE = 100;
 
     private static final int CAPTURE_VIDEO_ACTIVITY_REQUEST_CODE = 200;
+
+    public static String APP_PACKAGE_NAME = MainActivity.class.getPackage().getName();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,6 +87,16 @@ public class MainActivity extends Activity {
 
         private File storageDir;
 
+        private static final String JPEG_FILE_PREFIX = "mytestphoto";
+
+        private static final String JPEG_FILE_SUFFIX = ".jpeg";
+
+        private String mCurrentPhotoPath;
+
+        private Intent takePictureIntent;
+
+        private Bitmap mImageBitmap;
+
         public PlaceholderFragment() {
         }
 
@@ -99,6 +120,13 @@ public class MainActivity extends Activity {
                 }
             });
 
+            showPic.setOnClickListener(new View.OnClickListener(){
+                @Override
+                public void onClick(View view) {
+                    savePhotoToExternalStorage();
+                }
+            });
+
             return rootView;
         }
 
@@ -108,7 +136,7 @@ public class MainActivity extends Activity {
          * @param actionCode
          */
         private void dispatchTakePictureIntent(int actionCode) {
-            Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             startActivityForResult(takePictureIntent, actionCode);
            // handleSmallCameraPhoto(takePictureIntent);
         }
@@ -120,7 +148,7 @@ public class MainActivity extends Activity {
          */
         private void handleSmallCameraPhoto(Intent intent) {
             Bundle extras = intent.getExtras();
-            Bitmap mImageBitmap = (Bitmap) extras.get("data");
+            mImageBitmap = (Bitmap) extras.get("data");
             mImageView.setImageBitmap(mImageBitmap);
         }
 
@@ -148,6 +176,71 @@ public class MainActivity extends Activity {
                     ),
                     getAlbumName()
             );
+            if(!storageDir.exists()){
+                storageDir.mkdir();
+                Log.i("File: ", "Create external folder!");
+            }
+            try{
+                File f = createImageFile();
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(f));
+                Toast.makeText(this.getView().getContext(), "Save photo successfully!", Toast.LENGTH_LONG);
+                galleryAddPic();
+                setPic();
+            } catch (IOException e){
+                Log.e("Save photo", e.getMessage());
+            }
+        }
+
+        private File createImageFile() throws IOException {
+            // Create an image file name
+            String timeStamp =
+                    new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+            String imageFileName = JPEG_FILE_PREFIX + timeStamp;
+            File image = File.createTempFile(
+                    imageFileName,
+                    JPEG_FILE_SUFFIX,
+                    storageDir
+            );
+
+            Log.i("Photo path: ", image.getAbsolutePath());
+            mCurrentPhotoPath = image.getAbsolutePath();
+            OutputStream out = new FileOutputStream(image);
+            mImageBitmap.compress(Bitmap.CompressFormat.JPEG, 100, out);
+            out.flush();
+            out.close();
+            return image;
+        }
+
+        private void galleryAddPic() {
+            Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+            File f = new File(mCurrentPhotoPath);
+            Uri contentUri = Uri.fromFile(f);
+            mediaScanIntent.setData(contentUri);
+//            this.sendBroadcast(mediaScanIntent);
+        }
+
+        private void setPic() {
+            // Get the dimensions of the View
+            int targetW = mImageView.getWidth();
+            int targetH = mImageView.getHeight();
+
+            // Get the dimensions of the bitmap
+            BitmapFactory.Options bmOptions = new BitmapFactory.Options();
+            bmOptions.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(mCurrentPhotoPath, bmOptions);
+            int photoW = bmOptions.outWidth;
+            int photoH = bmOptions.outHeight;
+
+            // Determine how much to scale down the image
+            int scaleFactor = Math.min(photoW/targetW, photoH/targetH);
+
+            // Decode the image file into a Bitmap sized to fill the View
+            bmOptions.inJustDecodeBounds = false;
+            bmOptions.inSampleSize = scaleFactor;
+            bmOptions.inPurgeable = true;
+
+            Bitmap bitmap = BitmapFactory.decodeFile(mCurrentPhotoPath, bmOptions);
+            mImageView.setImageBitmap(bitmap);
         }
 
         private String getAlbumName() {
